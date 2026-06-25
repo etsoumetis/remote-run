@@ -2,7 +2,7 @@
   "name": "remote-run",
   "displayName": "Remote Run",
   "description": "Write code locally, run it on a remote machine via SSH — auto-sync on save, integrated terminal output.",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "publisher": "EfthymiosTsoumetis",
   "icon": "icon.png",
   "license": "MIT",

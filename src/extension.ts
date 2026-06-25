@@ -374,7 +374,7 @@ async function cmdOpenRemoteFile(node: FileNode) {
   try {
     const uri = toRemoteUri(node.hostId, node.item.fullPath);
     const doc = await vscode.workspace.openTextDocument(uri);
-    await vscode.window.showTextDocument(doc, { preview: true });
+    await vscode.window.showTextDocument(doc, { preview: false });
   } catch (e: any) {
     vscode.window.showErrorMessage(`Cannot open file: ${e.message}`);
   }
