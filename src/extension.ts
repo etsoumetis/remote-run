@@ -1,36 +1,32 @@
 import * as vscode from 'vscode';
-import * as os from 'os';
 import * as path from 'path';
-import * as fs from 'fs';
 
 import { HostConfig, RemoteOs, getHosts, addHost, removeHost, generateId } from './hostConfig';
 import { CredentialStore } from './credentialStore';
 import { SshManager } from './sshManager';
 import { SyncManager } from './syncManager';
-import { RunManager } from './runManager';
 import { StatusBarManager } from './statusBar';
 import { RemoteRunTreeProvider } from './treeView';
 import type { HostNode, FileNode, TreeNode } from './treeView';
 import { SshPseudoterminal } from './sshTerminal';
-import { expandHome } from './utils';
+import { expandHome, getRunCommand } from './utils';
+import { RemoteFileSystemProvider, REMOTE_SCHEME, toRemoteUri } from './remoteFileSystem';
 
 let activeHost: HostConfig | undefined;
 let ssh: SshManager;
 let creds: CredentialStore;
 let sync: SyncManager;
-let runner: RunManager;
 let bar: StatusBarManager;
 let tree: RemoteRunTreeProvider;
-let out: vscode.OutputChannel;
+let remoteFs: RemoteFileSystemProvider;
 
 export function activate(context: vscode.ExtensionContext) {
-  ssh    = new SshManager();
-  creds  = new CredentialStore(context.secrets);
-  sync   = new SyncManager();
-  runner = new RunManager();
-  bar    = new StatusBarManager();
-  tree   = new RemoteRunTreeProvider(ssh);
-  out    = vscode.window.createOutputChannel('Remote Run');
+  ssh      = new SshManager();
+  creds    = new CredentialStore(context.secrets);
+  sync     = new SyncManager();
+  bar      = new StatusBarManager();
+  tree     = new RemoteRunTreeProvider(ssh);
+  remoteFs = new RemoteFileSystemProvider(ssh, bar);
 
   ssh.onDisconnect(hostId => {
     if (activeHost?.id === hostId) {
@@ -44,19 +40,22 @@ export function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     bar,
-    { dispose: () => out.dispose() },
     { dispose: () => ssh.disconnectAll() },
 
+    vscode.workspace.registerFileSystemProvider(REMOTE_SCHEME, remoteFs, { isCaseSensitive: true }),
     vscode.window.registerTreeDataProvider('remoteRunHosts', tree),
 
     vscode.workspace.onDidSaveTextDocument(async doc => {
+      // Remote-scheme files save through FileSystemProvider.writeFile — skip them here
+      if (doc.uri.scheme === REMOTE_SCHEME) return;
+
       if (!activeHost) return;
       if (!vscode.workspace.getConfiguration('remoteRun').get<boolean>('syncOnSave', true)) return;
       bar.setSyncing();
       try {
         const sftp = await ssh.getSftp(activeHost.id);
-        await sync.uploadFile(doc.fileName, activeHost, ssh.getHomeDir(activeHost.id)!, sftp);
-        bar.setSyncOk();
+        const remotePath = await sync.uploadFile(doc.fileName, activeHost, ssh.getHomeDir(activeHost.id)!, sftp);
+        bar.setSyncOk(path.basename(remotePath));
       } catch (e: any) {
         bar.setSyncError(e.message);
       }
@@ -78,6 +77,7 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('remoteRun.openTerminal',    cmdOpenTerminal),
     vscode.commands.registerCommand('remoteRun.newFolder',       cmdNewFolder),
     vscode.commands.registerCommand('remoteRun.newFile',         cmdNewFile),
+    vscode.commands.registerCommand('remoteRun.renameRemoteItem',cmdRenameRemoteItem),
     vscode.commands.registerCommand('remoteRun.deleteRemoteItem',cmdDeleteRemoteItem),
   );
 }
@@ -296,33 +296,58 @@ async function cmdRunFile() {
   const homeDir = ssh.getHomeDir(activeHost.id);
   if (!client || !homeDir) { vscode.window.showErrorMessage('Connection lost. Please reconnect.'); return; }
 
-  bar.setSyncing();
-  try {
-    const sftp = await ssh.getSftp(activeHost.id);
-    await sync.uploadFile(doc.fileName, activeHost, homeDir, sftp);
-    bar.setSyncOk();
-  } catch (e: any) {
-    bar.setSyncError(e.message);
-    vscode.window.showErrorMessage(`Sync failed: ${e.message}`);
+  // Determine remote path — remote files are already there, local files need syncing first
+  let remotePath: string;
+  if (doc.uri.scheme === REMOTE_SCHEME) {
+    if (doc.uri.authority !== activeHost.id) {
+      vscode.window.showWarningMessage('This file belongs to a different host. Connect to that host first.');
+      return;
+    }
+    remotePath = doc.uri.path;
+  } else {
+    bar.setSyncing();
+    try {
+      const sftp = await ssh.getSftp(activeHost.id);
+      remotePath = await sync.uploadFile(doc.fileName, activeHost, homeDir, sftp);
+      bar.setSyncOk(path.basename(remotePath));
+    } catch (e: any) {
+      bar.setSyncError(e.message);
+      vscode.window.showErrorMessage(`Sync failed: ${e.message}`);
+      return;
+    }
+  }
+
+  // Determine the run command from file extension
+  const filePath = doc.uri.scheme === REMOTE_SCHEME ? doc.uri.path : doc.fileName;
+  const ext = path.posix.extname(filePath).toLowerCase() || path.extname(filePath).toLowerCase();
+  const custom = vscode.workspace.getConfiguration('remoteRun').get<Record<string, string>>('runCommands', {});
+  const cmd = getRunCommand(ext, custom, activeHost.remoteOs ?? 'linux');
+  if (!cmd) {
+    vscode.window.showWarningMessage(`No run command for "${ext}". Add one in Settings → Remote Run → Run Commands.`);
     return;
   }
 
-  try {
-    await runner.runFile(client, doc.fileName, activeHost, homeDir, out);
-  } catch (e: any) {
-    vscode.window.showErrorMessage(`Run failed: ${e.message}`);
-  }
+  const fullCmd = `${cmd} "${remotePath}"`;
+  const filename = remotePath.split('/').pop() ?? remotePath;
+  const pty = new SshPseudoterminal(client, fullCmd);
+  const terminal = vscode.window.createTerminal({ name: `Run: ${filename} [${activeHost.label}]`, pty });
+  terminal.show();
 }
 
 async function cmdSyncFile() {
   if (!activeHost) { vscode.window.showWarningMessage('Not connected to any host.'); return; }
   const doc = vscode.window.activeTextEditor?.document;
   if (!doc || doc.isUntitled) { vscode.window.showWarningMessage('Open a saved file first.'); return; }
+  if (doc.uri.scheme === REMOTE_SCHEME) {
+    // Trigger a save which goes through FileSystemProvider.writeFile
+    await doc.save();
+    return;
+  }
   bar.setSyncing();
   try {
     const sftp = await ssh.getSftp(activeHost.id);
-    await sync.uploadFile(doc.fileName, activeHost, ssh.getHomeDir(activeHost.id)!, sftp);
-    bar.setSyncOk();
+    const remotePath = await sync.uploadFile(doc.fileName, activeHost, ssh.getHomeDir(activeHost.id)!, sftp);
+    bar.setSyncOk(path.basename(remotePath));
     vscode.window.showInformationMessage('File synced.');
   } catch (e: any) {
     bar.setSyncError(e.message);
@@ -347,16 +372,8 @@ async function cmdClearPassword() {
 async function cmdOpenRemoteFile(node: FileNode) {
   if (!node?.item || node.item.isDirectory) return;
   try {
-    const sftp = await ssh.getSftp(node.hostId);
-    const tmpDir = path.join(os.tmpdir(), 'remote-run-preview');
-    fs.mkdirSync(tmpDir, { recursive: true });
-    const localTmp = path.join(tmpDir, path.basename(node.item.fullPath));
-    await new Promise<void>((resolve, reject) => {
-      sftp.fastGet(node.item.fullPath, localTmp, (err: Error | null | undefined) =>
-        err ? reject(err) : resolve(),
-      );
-    });
-    const doc = await vscode.workspace.openTextDocument(localTmp);
+    const uri = toRemoteUri(node.hostId, node.item.fullPath);
+    const doc = await vscode.workspace.openTextDocument(uri);
     await vscode.window.showTextDocument(doc, { preview: true });
   } catch (e: any) {
     vscode.window.showErrorMessage(`Cannot open file: ${e.message}`);
@@ -413,6 +430,28 @@ async function cmdNewFile(node?: TreeNode) {
   }
 }
 
+async function cmdRenameRemoteItem(node?: FileNode) {
+  if (!node?.item) return;
+  const newName = await vscode.window.showInputBox({
+    prompt: 'New name',
+    value: node.item.name,
+    ignoreFocusOut: true,
+    validateInput: v => !v.trim() ? 'Name cannot be empty' : v.includes('/') ? 'Name cannot contain /' : undefined,
+  });
+  if (!newName || newName.trim() === node.item.name) return;
+  const dir     = node.item.fullPath.slice(0, node.item.fullPath.lastIndexOf('/'));
+  const newPath = `${dir}/${newName.trim()}`;
+  try {
+    const sftp = await ssh.getSftp(node.hostId);
+    await new Promise<void>((resolve, reject) => {
+      sftp.rename(node.item.fullPath, newPath, err => err ? reject(err) : resolve());
+    });
+    tree.refresh();
+  } catch (e: any) {
+    vscode.window.showErrorMessage(`Rename failed: ${e.message}`);
+  }
+}
+
 async function cmdDeleteRemoteItem(node?: FileNode) {
   if (!node?.item) return;
   const ok = await vscode.window.showWarningMessage(
@@ -428,6 +467,7 @@ async function cmdDeleteRemoteItem(node?: FileNode) {
         sftp.unlink(node.item.fullPath, err => err ? reject(err) : resolve());
       }
     });
+    remoteFs.fireDeleted(node.hostId, node.item.fullPath);
     tree.refresh();
   } catch (e: any) {
     const hint = node.item.isDirectory ? ' (directory must be empty)' : '';

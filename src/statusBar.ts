@@ -35,9 +35,9 @@ export class StatusBarManager implements vscode.Disposable {
     this.syncItem.tooltip = undefined;
   }
 
-  setSyncOk(): void {
+  setSyncOk(filename?: string): void {
     this.clearTimer();
-    this.syncItem.text = '$(check) Synced';
+    this.syncItem.text = filename ? `$(check) Synced → ${filename}` : '$(check) Synced';
     this.timer = setTimeout(() => {
       this.syncItem.text = '$(circle-large-outline) Idle';
     }, 3000);

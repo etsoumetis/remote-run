@@ -1,71 +1,76 @@
-# remote-run README
+# Remote Run
 
-This is the README for your extension "remote-run". After writing up a brief description, we recommend including the following sections.
+Write code locally, run it on a remote machine — without copying files or opening SSH terminals manually.
 
-## Features
-
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
-
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+**Workflow:** Edit → Save → output appears in a terminal connected to your remote device.
 
 ---
 
-## Following extension guidelines
+## Features
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+### Sidebar host manager
+Add and manage SSH hosts from a dedicated sidebar panel. Connected hosts show with a green indicator; disconnected with grey.
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+### Auto-sync on Save
+Whenever you save a file (Ctrl+S), it is automatically uploaded to the remote machine via SFTP. The status bar shows `Synced → filename` for confirmation.
 
-## Working with Markdown
+### Run on Remote
+Click the **Run on Remote** button (▶) in the editor toolbar to sync and run the active file on the remote device. Output appears in an integrated SSH terminal — exactly like running locally.
 
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
+### Remote file browser
+Browse the remote file system in the sidebar tree view. Click a file to open and edit it directly (no temp files). Changes are saved back to the remote on Ctrl+S.
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
+### Remote operations
+Right-click any file or folder in the tree to:
+- New File / New Folder
+- Rename
+- Delete
 
-## For more information
+### Integrated SSH terminal
+Open a full interactive SSH terminal for any connected host from the sidebar.
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
+### OS support
+Linux (Raspberry Pi, Ubuntu, Debian), macOS, and Windows remote machines.
 
-**Enjoy!**
+---
+
+## Getting Started
+
+1. Click the **Remote Run** icon in the Activity Bar (left sidebar).
+2. Click **+** to add a host — enter label, hostname/IP, port, username, OS, and optionally a working directory.
+3. Click the plug icon next to a host to connect. Enter your password (saved securely in the OS keychain).
+4. Open a local file and press **Ctrl+S** — it syncs automatically.
+5. Press the **▶** button in the editor toolbar to run on the remote.
+
+---
+
+## Extension Settings
+
+| Setting | Default | Description |
+|---|---|---|
+| `remoteRun.syncOnSave` | `true` | Auto-upload the current file on save when connected |
+| `remoteRun.runCommands` | `{}` | Custom run commands by extension, e.g. `{ ".py": "python3" }` |
+
+---
+
+## Requirements
+
+- The remote machine must have SSH (OpenSSH) running and accessible over the network.
+- For running files, the relevant interpreter (Python, Node.js, etc.) must be installed on the remote machine.
+
+---
+
+## Supported Languages (default run commands)
+
+| Extension | Linux/macOS | Windows |
+|---|---|---|
+| `.py` | `python3` | `python` |
+| `.js` | `node` | `node` |
+| `.sh` | `bash` | — |
+| `.ts` | `ts-node` | `ts-node` |
+| `.rb` | `ruby` | `ruby` |
+| `.go` | `go run` | `go run` |
+| `.java` | `java` | `java` |
+| `.php` | `php` | `php` |
+
+Add more via `remoteRun.runCommands` in Settings.

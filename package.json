@@ -1,15 +1,20 @@
 {
   "name": "remote-run",
   "displayName": "Remote Run",
-  "description": "Run code on remote machines via SSH directly from VS Code",
-  "version": "0.0.1",
-  "publisher": "etsoumetis",
+  "description": "Write code locally, run it on a remote machine via SSH — auto-sync on save, integrated terminal output.",
+  "version": "0.0.2",
+  "publisher": "EfthymiosTsoumetis",
+  "icon": "icon.png",
+  "license": "MIT",
+  "keywords": ["ssh", "remote", "sync", "raspberry pi", "run"],
+  "categories": ["Other"],
   "engines": {
     "vscode": "^1.125.0"
   },
-  "categories": [
-    "Other"
-  ],
+  "galleryBanner": {
+    "color": "#1e1e1e",
+    "theme": "dark"
+  },
   "activationEvents": [
     "onStartupFinished"
   ],
@@ -20,7 +25,7 @@
         {
           "id": "remoteRunSidebar",
           "title": "Remote Run",
-          "icon": "resources/remote-run-icon.svg"
+          "icon": "icon.png"
         }
       ]
     },
@@ -46,9 +51,10 @@
       { "command": "remoteRun.clearPassword",    "title": "Clear Saved Password", "category": "Remote Run" },
       { "command": "remoteRun.refreshExplorer", "title": "Refresh",              "category": "Remote Run", "icon": "$(refresh)" },
       { "command": "remoteRun.openRemoteFile",  "title": "Open Remote File",     "category": "Remote Run" },
-      { "command": "remoteRun.openTerminal",    "title": "Open SSH Terminal",    "category": "Remote Run", "icon": "$(terminal)" },
+      { "command": "remoteRun.openTerminal",      "title": "Open SSH Terminal",    "category": "Remote Run", "icon": "$(terminal)" },
       { "command": "remoteRun.newFolder",       "title": "New Folder",           "category": "Remote Run", "icon": "$(new-folder)" },
       { "command": "remoteRun.newFile",         "title": "New File",             "category": "Remote Run", "icon": "$(new-file)" },
+      { "command": "remoteRun.renameRemoteItem","title": "Rename",               "category": "Remote Run", "icon": "$(edit)" },
       { "command": "remoteRun.deleteRemoteItem","title": "Delete",               "category": "Remote Run", "icon": "$(trash)" }
     ],
     "menus": {
@@ -72,11 +78,14 @@
         { "command": "remoteRun.newFile",         "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "2_files@2" },
         { "command": "remoteRun.editHost",        "when": "view == remoteRunHosts && viewItem =~ /^host/",            "group": "3_host@1" },
         { "command": "remoteRun.deleteHost",      "when": "view == remoteRunHosts && viewItem =~ /^host/",            "group": "3_host@2" },
-        { "command": "remoteRun.newFolder",       "when": "view == remoteRunHosts && viewItem == remote-dir",         "group": "inline@1" },
-        { "command": "remoteRun.newFile",         "when": "view == remoteRunHosts && viewItem == remote-dir",         "group": "inline@2" },
-        { "command": "remoteRun.newFolder",       "when": "view == remoteRunHosts && viewItem == remote-dir",         "group": "1_create@1" },
-        { "command": "remoteRun.newFile",         "when": "view == remoteRunHosts && viewItem == remote-dir",         "group": "1_create@2" },
-        { "command": "remoteRun.deleteRemoteItem","when": "view == remoteRunHosts && viewItem =~ /^remote-/",         "group": "2_delete@1" }
+        { "command": "remoteRun.newFolder",        "when": "view == remoteRunHosts && viewItem == remote-dir",  "group": "inline@1" },
+        { "command": "remoteRun.newFile",          "when": "view == remoteRunHosts && viewItem == remote-dir",  "group": "inline@2" },
+        { "command": "remoteRun.renameRemoteItem", "when": "view == remoteRunHosts && viewItem == remote-dir",  "group": "inline@3" },
+        { "command": "remoteRun.renameRemoteItem", "when": "view == remoteRunHosts && viewItem == remote-file", "group": "inline@1" },
+        { "command": "remoteRun.newFolder",        "when": "view == remoteRunHosts && viewItem =~ /^remote/",   "group": "1_create@1" },
+        { "command": "remoteRun.newFile",          "when": "view == remoteRunHosts && viewItem =~ /^remote/",   "group": "1_create@2" },
+        { "command": "remoteRun.renameRemoteItem", "when": "view == remoteRunHosts && viewItem =~ /^remote/",   "group": "2_edit@1" },
+        { "command": "remoteRun.deleteRemoteItem", "when": "view == remoteRunHosts && viewItem =~ /^remote/",   "group": "3_delete@1" }
       ]
     },
     "configuration": {

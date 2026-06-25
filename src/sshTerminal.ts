@@ -10,7 +10,10 @@ export class SshPseudoterminal implements vscode.Pseudoterminal {
 
   private stream?: ClientChannel;
 
-  constructor(private readonly client: Client) {}
+  constructor(
+    private readonly client: Client,
+    private readonly initialCommand?: string,
+  ) {}
 
   open(dimensions: vscode.TerminalDimensions | undefined): void {
     this.client.shell(
@@ -29,6 +32,9 @@ export class SshPseudoterminal implements vscode.Pseudoterminal {
         stream.on('data',          (d: Buffer) => this._onDidWrite.fire(d.toString()));
         stream.stderr.on('data',   (d: Buffer) => this._onDidWrite.fire(d.toString()));
         stream.on('close',         ()          => this._onDidClose.fire());
+        if (this.initialCommand) {
+          stream.write(this.initialCommand + '\r');
+        }
       },
     );
   }

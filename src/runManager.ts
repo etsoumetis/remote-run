@@ -11,6 +11,7 @@ export class RunManager {
     host: HostConfig,
     homeDir: string,
     output: vscode.OutputChannel,
+    overrideRemotePath?: string,
   ): Promise<void> {
     const ext = path.extname(localPath).toLowerCase();
     const custom = vscode.workspace
@@ -25,7 +26,7 @@ export class RunManager {
       return;
     }
 
-    const remotePath = remotePathFor(host, homeDir, localPath);
+    const remotePath = overrideRemotePath ?? remotePathFor(host, homeDir, localPath);
     const fullCmd = `${cmd} "${remotePath}"`;
 
     output.show(true);
