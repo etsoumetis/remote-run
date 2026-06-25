@@ -8,7 +8,7 @@ import { SyncManager } from './syncManager';
 import { StatusBarManager } from './statusBar';
 import { RemoteRunTreeProvider } from './treeView';
 import type { HostNode, FileNode, TreeNode } from './treeView';
-import { SshPseudoterminal } from './sshTerminal';
+import { SshPseudoterminal, SshExecTerminal } from './sshTerminal';
 import { expandHome, getRunCommand } from './utils';
 import { RemoteFileSystemProvider, REMOTE_SCHEME, toRemoteUri } from './remoteFileSystem';
 
@@ -19,6 +19,7 @@ let sync: SyncManager;
 let bar: StatusBarManager;
 let tree: RemoteRunTreeProvider;
 let remoteFs: RemoteFileSystemProvider;
+let activeExecTerminal: { pty: SshExecTerminal; vsc: vscode.Terminal } | undefined;
 
 export function activate(context: vscode.ExtensionContext) {
   ssh      = new SshManager();
@@ -79,6 +80,14 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('remoteRun.newFile',         cmdNewFile),
     vscode.commands.registerCommand('remoteRun.renameRemoteItem',cmdRenameRemoteItem),
     vscode.commands.registerCommand('remoteRun.deleteRemoteItem',cmdDeleteRemoteItem),
+    vscode.commands.registerCommand('remoteRun.stopFile',        cmdStopFile),
+
+    vscode.window.onDidCloseTerminal(t => {
+      if (activeExecTerminal?.vsc === t) {
+        setRunningCtx(false);
+        activeExecTerminal = undefined;
+      }
+    }),
   );
 }
 
@@ -280,6 +289,11 @@ async function cmdDisconnect() {
 }
 
 function disconnectFromHost(host: HostConfig, showMsg = true): void {
+  if (activeExecTerminal) {
+    activeExecTerminal.pty.kill();
+    setRunningCtx(false);
+    activeExecTerminal = undefined;
+  }
   ssh.disconnect(host.id);
   if (activeHost?.id === host.id) {
     activeHost = undefined;
@@ -351,9 +365,23 @@ async function cmdRunFile() {
   }
 
   const filename = remotePath.split('/').pop() ?? remotePath;
-  const pty = new SshPseudoterminal(client, fullCmd);
+  const pty = new SshExecTerminal(client, fullCmd);
   const terminal = vscode.window.createTerminal({ name: `Run: ${filename} [${activeHost.label}]`, pty });
+  activeExecTerminal = { pty, vsc: terminal };
+  pty.onDidClose(() => {
+    if (activeExecTerminal?.vsc === terminal) {
+      setRunningCtx(false);
+      activeExecTerminal = undefined;
+    }
+  });
+  setRunningCtx(true);
   terminal.show();
+}
+
+function cmdStopFile(): void {
+  activeExecTerminal?.pty.kill();
+  setRunningCtx(false);
+  activeExecTerminal = undefined;
 }
 
 async function cmdSyncFile() {
@@ -524,6 +552,10 @@ function ask(p: string, value?: string, placeHolder?: string): Thenable<string |
 
 function setConnectedCtx(connected: boolean): void {
   vscode.commands.executeCommand('setContext', 'remoteRun.connected', connected);
+}
+
+function setRunningCtx(running: boolean): void {
+  vscode.commands.executeCommand('setContext', 'remoteRun.running', running);
 }
 
 export function deactivate() {

@@ -2,7 +2,7 @@
   "name": "remote-run",
   "displayName": "Remote Run",
   "description": "Write code locally, run it on a remote machine via SSH — auto-sync on save, integrated terminal output.",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "publisher": "EfthymiosTsoumetis",
   "icon": "icon.png",
   "license": "CC-BY-NC-SA-4.0",
@@ -59,11 +59,13 @@
       { "command": "remoteRun.newFolder",       "title": "New Folder",           "category": "Remote Run", "icon": "$(new-folder)" },
       { "command": "remoteRun.newFile",         "title": "New File",             "category": "Remote Run", "icon": "$(new-file)" },
       { "command": "remoteRun.renameRemoteItem","title": "Rename",               "category": "Remote Run", "icon": "$(edit)" },
-      { "command": "remoteRun.deleteRemoteItem","title": "Delete",               "category": "Remote Run", "icon": "$(trash)" }
+      { "command": "remoteRun.deleteRemoteItem","title": "Delete",               "category": "Remote Run", "icon": "$(trash)" },
+      { "command": "remoteRun.stopFile",        "title": "Stop",                 "category": "Remote Run", "icon": "$(debug-stop)" }
     ],
     "menus": {
       "editor/title": [
-        { "command": "remoteRun.runFile", "when": "editorIsOpen && remoteRun.connected", "group": "navigation" }
+        { "command": "remoteRun.runFile",  "when": "editorIsOpen && remoteRun.connected && !remoteRun.running", "group": "navigation" },
+        { "command": "remoteRun.stopFile", "when": "remoteRun.running",                                         "group": "navigation" }
       ],
       "view/title": [
         { "command": "remoteRun.addHost",         "when": "view == remoteRunHosts", "group": "navigation@1" },
