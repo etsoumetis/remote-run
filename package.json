@@ -3,21 +3,115 @@
   "displayName": "Remote Run",
   "description": "Run code on remote machines via SSH directly from VS Code",
   "version": "0.0.1",
+  "publisher": "etsoumetis",
   "engines": {
     "vscode": "^1.125.0"
   },
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "remoteRunSidebar",
+          "title": "Remote Run",
+          "icon": "resources/remote-run-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "remoteRunSidebar": [
+        {
+          "id": "remoteRunHosts",
+          "name": "Hosts"
+        }
+      ]
+    },
     "commands": [
-      {
-        "command": "remote-run.helloWorld",
-        "title": "Hello World"
+      { "command": "remoteRun.addHost",         "title": "Add Host",             "category": "Remote Run", "icon": "$(add)" },
+      { "command": "remoteRun.removeHost",      "title": "Remove Host",          "category": "Remote Run" },
+      { "command": "remoteRun.editHost",        "title": "Edit Host",            "category": "Remote Run", "icon": "$(edit)" },
+      { "command": "remoteRun.connect",         "title": "Connect to Host",      "category": "Remote Run" },
+      { "command": "remoteRun.disconnect",      "title": "Disconnect",           "category": "Remote Run" },
+      { "command": "remoteRun.connectHost",     "title": "Connect",              "category": "Remote Run", "icon": "$(plug)" },
+      { "command": "remoteRun.disconnectHost",  "title": "Disconnect",           "category": "Remote Run", "icon": "$(debug-disconnect)" },
+      { "command": "remoteRun.deleteHost",      "title": "Remove Host",          "category": "Remote Run", "icon": "$(trash)" },
+      { "command": "remoteRun.runFile",         "title": "Run Current File",     "category": "Remote Run", "icon": "$(play)" },
+      { "command": "remoteRun.syncFile",        "title": "Sync Current File",    "category": "Remote Run", "icon": "$(cloud-upload)" },
+      { "command": "remoteRun.clearPassword",   "title": "Clear Saved Password", "category": "Remote Run" },
+      { "command": "remoteRun.refreshExplorer", "title": "Refresh",              "category": "Remote Run", "icon": "$(refresh)" },
+      { "command": "remoteRun.openRemoteFile",  "title": "Open Remote File",     "category": "Remote Run" }
+    ],
+    "menus": {
+      "editor/title": [
+        { "command": "remoteRun.runFile",  "when": "editorIsOpen", "group": "navigation" },
+        { "command": "remoteRun.syncFile", "when": "editorIsOpen", "group": "navigation" }
+      ],
+      "view/title": [
+        { "command": "remoteRun.addHost",         "when": "view == remoteRunHosts", "group": "navigation@1" },
+        { "command": "remoteRun.refreshExplorer", "when": "view == remoteRunHosts", "group": "navigation@2" }
+      ],
+      "view/item/context": [
+        { "command": "remoteRun.connectHost",    "when": "view == remoteRunHosts && viewItem == host-disconnected", "group": "inline@1" },
+        { "command": "remoteRun.disconnectHost", "when": "view == remoteRunHosts && viewItem == host-connected",    "group": "inline@1" },
+        { "command": "remoteRun.editHost",       "when": "view == remoteRunHosts && viewItem =~ /^host/",          "group": "inline@2" },
+        { "command": "remoteRun.deleteHost",     "when": "view == remoteRunHosts && viewItem =~ /^host/",          "group": "inline@3" },
+        { "command": "remoteRun.connectHost",    "when": "view == remoteRunHosts && viewItem == host-disconnected", "group": "1_host@1" },
+        { "command": "remoteRun.disconnectHost", "when": "view == remoteRunHosts && viewItem == host-connected",    "group": "1_host@1" },
+        { "command": "remoteRun.editHost",       "when": "view == remoteRunHosts && viewItem =~ /^host/",          "group": "2_host@1" },
+        { "command": "remoteRun.deleteHost",     "when": "view == remoteRunHosts && viewItem =~ /^host/",          "group": "2_host@2" }
+      ]
+    },
+    "configuration": {
+      "title": "Remote Run",
+      "properties": {
+        "remoteRun.hosts": {
+          "type": "array",
+          "default": [],
+          "description": "List of configured SSH hosts.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "label": {
+                "type": "string"
+              },
+              "host": {
+                "type": "string"
+              },
+              "port": {
+                "type": "number",
+                "default": 22
+              },
+              "username": {
+                "type": "string"
+              },
+              "remotePath": {
+                "type": "string",
+                "default": "~"
+              }
+            }
+          }
+        },
+        "remoteRun.syncOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically upload the current file to the remote host on save."
+        },
+        "remoteRun.runCommands": {
+          "type": "object",
+          "default": {},
+          "description": "Custom run commands by file extension, e.g. { \".py\": \"python3\", \".js\": \"node\" }."
+        }
       }
-    ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",
@@ -27,15 +121,19 @@
     "lint": "eslint src",
     "test": "vscode-test"
   },
+  "dependencies": {
+    "ssh2": "^1.17.0"
+  },
   "devDependencies": {
-    "@types/vscode": "^1.125.0",
     "@types/mocha": "^10.0.10",
     "@types/node": "24.x",
-    "typescript-eslint": "^8.61.1",
+    "@types/ssh2": "^1.15.5",
+    "@types/vscode": "^1.125.0",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^3.0.0",
     "eslint": "^10.5.0",
     "typescript": "^6.0.3",
-    "@vscode/test-cli": "^0.0.15",
-    "@vscode/test-electron": "^3.0.0"
+    "typescript-eslint": "^8.61.1"
   },
   "overrides": {
     "diff": "^8.0.4",

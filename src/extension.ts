@@ -1,26 +1,365 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import * as os from 'os';
+import * as path from 'path';
+import * as fs from 'fs';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
+import { HostConfig, RemoteOs, getHosts, addHost, removeHost, generateId } from './hostConfig';
+import { CredentialStore } from './credentialStore';
+import { SshManager } from './sshManager';
+import { SyncManager } from './syncManager';
+import { RunManager } from './runManager';
+import { StatusBarManager } from './statusBar';
+import { RemoteRunTreeProvider } from './treeView';
+import type { HostNode, FileNode } from './treeView';
+
+let activeHost: HostConfig | undefined;
+let ssh: SshManager;
+let creds: CredentialStore;
+let sync: SyncManager;
+let runner: RunManager;
+let bar: StatusBarManager;
+let tree: RemoteRunTreeProvider;
+let out: vscode.OutputChannel;
+
 export function activate(context: vscode.ExtensionContext) {
+  ssh    = new SshManager();
+  creds  = new CredentialStore(context.secrets);
+  sync   = new SyncManager();
+  runner = new RunManager();
+  bar    = new StatusBarManager();
+  tree   = new RemoteRunTreeProvider(ssh);
+  out    = vscode.window.createOutputChannel('Remote Run');
 
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "remote-run" is now active!');
+  ssh.onDisconnect(hostId => {
+    if (activeHost?.id === hostId) {
+      activeHost = undefined;
+      bar.setDisconnected();
+    }
+    tree.refresh();
+    vscode.window.showWarningMessage('Remote Run: connection lost.');
+  });
 
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('remote-run.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello World from Remote Run!');
-	});
+  context.subscriptions.push(
+    bar,
+    { dispose: () => out.dispose() },
+    { dispose: () => ssh.disconnectAll() },
 
-	context.subscriptions.push(disposable);
+    vscode.window.registerTreeDataProvider('remoteRunHosts', tree),
+
+    vscode.workspace.onDidSaveTextDocument(async doc => {
+      if (!activeHost) return;
+      if (!vscode.workspace.getConfiguration('remoteRun').get<boolean>('syncOnSave', true)) return;
+      bar.setSyncing();
+      try {
+        const sftp = await ssh.getSftp(activeHost.id);
+        await sync.uploadFile(doc.fileName, activeHost, ssh.getHomeDir(activeHost.id)!, sftp);
+        bar.setSyncOk();
+      } catch (e: any) {
+        bar.setSyncError(e.message);
+      }
+    }),
+
+    vscode.commands.registerCommand('remoteRun.addHost',         cmdAddHost),
+    vscode.commands.registerCommand('remoteRun.removeHost',      cmdRemoveHost),
+    vscode.commands.registerCommand('remoteRun.editHost',        cmdEditHost),
+    vscode.commands.registerCommand('remoteRun.connect',         cmdConnect),
+    vscode.commands.registerCommand('remoteRun.disconnect',      cmdDisconnect),
+    vscode.commands.registerCommand('remoteRun.connectHost',     (n: HostNode) => connectToHost(n.config)),
+    vscode.commands.registerCommand('remoteRun.disconnectHost',  (n: HostNode) => disconnectFromHost(n.config)),
+    vscode.commands.registerCommand('remoteRun.deleteHost',      cmdDeleteHost),
+    vscode.commands.registerCommand('remoteRun.runFile',         cmdRunFile),
+    vscode.commands.registerCommand('remoteRun.syncFile',        cmdSyncFile),
+    vscode.commands.registerCommand('remoteRun.clearPassword',   cmdClearPassword),
+    vscode.commands.registerCommand('remoteRun.refreshExplorer', () => tree.refresh()),
+    vscode.commands.registerCommand('remoteRun.openRemoteFile',  cmdOpenRemoteFile),
+  );
 }
 
-// This method is called when your extension is deactivated
-export function deactivate() {}
+// ─── Host management ─────────────────────────────────────────────────────────
+
+async function cmdAddHost() {
+  const label    = await ask('Host label', 'My Server');
+  if (!label) return;
+  const host     = await ask('Hostname or IP', '192.168.1.100');
+  if (!host) return;
+  const portStr  = await ask('SSH port', '22');
+  if (portStr === undefined) return;
+  const username = await ask('Username', 'pi');
+  if (!username) return;
+
+  const osPick = await vscode.window.showQuickPick([
+    { label: '$(vm) Linux',       description: 'Raspberry Pi, Ubuntu, Debian, and others', value: 'linux'   as RemoteOs },
+    { label: '$(apple) macOS',    description: 'macOS with Remote Login enabled',           value: 'macos'   as RemoteOs },
+    { label: '$(window) Windows', description: 'Windows with OpenSSH Server',               value: 'windows' as RemoteOs },
+  ], { placeHolder: 'Remote operating system' });
+  if (!osPick) return;
+
+  const remotePath = await ask(
+    'Remote working directory (optional)',
+    '',
+    'Leave empty for home directory, e.g. /home/pi/projects',
+  );
+  if (remotePath === undefined) return;
+
+  await addHost({
+    id: generateId(),
+    label,
+    host,
+    port: parseInt(portStr, 10) || 22,
+    username,
+    remotePath: remotePath.trim() || '~',
+    remoteOs: osPick.value,
+  });
+  tree.refresh();
+  vscode.window.showInformationMessage(`Host "${label}" added.`);
+}
+
+async function cmdEditHost(node?: HostNode) {
+  let host: HostConfig | undefined = node?.config;
+
+  if (!host) {
+    const hosts = getHosts();
+    if (!hosts.length) { vscode.window.showInformationMessage('No hosts configured.'); return; }
+    const pick = await vscode.window.showQuickPick(
+      hosts.map(h => ({ label: h.label, description: `${h.username}@${h.host}`, host: h })),
+      { placeHolder: 'Select host to edit' },
+    );
+    if (!pick) return;
+    host = pick.host;
+  }
+
+  const label      = await ask('Host label',                                    host.label);
+  if (!label) return;
+  const hostAddr   = await ask('Hostname or IP',                                host.host);
+  if (!hostAddr) return;
+  const portStr    = await ask('SSH port',                                       String(host.port));
+  if (portStr === undefined) return;
+  const username   = await ask('Username',                                       host.username);
+  if (!username) return;
+
+  const osPick = await vscode.window.showQuickPick([
+    { label: '$(vm) Linux',       description: 'Raspberry Pi, Ubuntu, Debian, and others', value: 'linux'   as RemoteOs },
+    { label: '$(apple) macOS',    description: 'macOS with Remote Login enabled',           value: 'macos'   as RemoteOs },
+    { label: '$(window) Windows', description: 'Windows with OpenSSH Server',               value: 'windows' as RemoteOs },
+  ], { placeHolder: 'Remote operating system' });
+  if (!osPick) return;
+
+  const remotePath = await ask(
+    'Remote working directory (optional)',
+    host.remotePath === '~' ? '' : host.remotePath,
+    'Leave empty for home directory',
+  );
+  if (remotePath === undefined) return;
+
+  const hosts = getHosts().map(h =>
+    h.id === host!.id
+      ? { ...h, remoteOs: osPick.value, label, host: hostAddr,
+          port: parseInt(portStr, 10) || 22, username, remotePath: remotePath.trim() || '~' }
+      : h,
+  );
+  await vscode.workspace
+    .getConfiguration('remoteRun')
+    .update('hosts', hosts, vscode.ConfigurationTarget.Global);
+
+  tree.refresh();
+  vscode.window.showInformationMessage(`Host "${label}" updated.`);
+}
+
+async function cmdRemoveHost() {
+  const hosts = getHosts();
+  if (!hosts.length) { vscode.window.showInformationMessage('No hosts configured.'); return; }
+  const pick = await vscode.window.showQuickPick(
+    hosts.map(h => ({ label: h.label, description: `${h.username}@${h.host}:${h.port}`, host: h })),
+    { placeHolder: 'Select host to remove' },
+  );
+  if (!pick) return;
+  await doDeleteHost(pick.host);
+}
+
+async function cmdDeleteHost(node?: HostNode) {
+  if (!node?.config) return;
+  await doDeleteHost(node.config);
+}
+
+async function doDeleteHost(host: HostConfig) {
+  const ok = await vscode.window.showWarningMessage(
+    `Remove "${host.label}"?`, { modal: true }, 'Remove',
+  );
+  if (ok !== 'Remove') return;
+  if (activeHost?.id === host.id) disconnectFromHost(host, false);
+  await removeHost(host.id);
+  await creds.clearPassword(host.id);
+  tree.refresh();
+  vscode.window.showInformationMessage(`Host "${host.label}" removed.`);
+}
+
+// ─── Connection ──────────────────────────────────────────────────────────────
+
+async function cmdConnect() {
+  const hosts = getHosts();
+  if (!hosts.length) {
+    const go = await vscode.window.showInformationMessage('No hosts configured.', 'Add Host');
+    if (go === 'Add Host') await cmdAddHost();
+    return;
+  }
+  const pick = await vscode.window.showQuickPick(
+    hosts.map(h => ({
+      label: `$(remote) ${h.label}`,
+      description: `${h.username}@${h.host}:${h.port}`,
+      host: h,
+    })),
+    { placeHolder: 'Select host to connect' },
+  );
+  if (!pick) return;
+  await connectToHost(pick.host);
+}
+
+async function connectToHost(host: HostConfig) {
+  // Switch active host if different one is connected
+  if (activeHost && activeHost.id !== host.id) disconnectFromHost(activeHost, false);
+
+  if (ssh.isConnected(host.id)) {
+    activeHost = host;
+    bar.setConnected(host.label);
+    tree.refresh();
+    return;
+  }
+
+  let password = await creds.getPassword(host.id);
+  if (!password) {
+    password = await vscode.window.showInputBox({
+      prompt: `Password for ${host.username}@${host.host}`,
+      password: true,
+      ignoreFocusOut: true,
+    });
+    if (password === undefined) return;
+  }
+
+  await vscode.window.withProgress(
+    { location: vscode.ProgressLocation.Notification, title: `Connecting to ${host.label}…`, cancellable: false },
+    async () => {
+      try {
+        await ssh.connect(host, password!);
+        await creds.setPassword(host.id, password!);
+        activeHost = host;
+        bar.setConnected(host.label);
+        tree.refresh();
+        vscode.window.showInformationMessage(`Connected to ${host.label}.`);
+      } catch (e: any) {
+        vscode.window.showErrorMessage(`Connection failed: ${e.message}`);
+      }
+    },
+  );
+}
+
+async function cmdDisconnect() {
+  if (!activeHost) return;
+  disconnectFromHost(activeHost);
+}
+
+function disconnectFromHost(host: HostConfig, showMsg = true): void {
+  ssh.disconnect(host.id);
+  if (activeHost?.id === host.id) {
+    activeHost = undefined;
+    bar.setDisconnected();
+  }
+  tree.refresh();
+  if (showMsg) vscode.window.showInformationMessage(`Disconnected from ${host.label}.`);
+}
+
+// ─── Run / Sync ──────────────────────────────────────────────────────────────
+
+async function cmdRunFile() {
+  if (!activeHost) {
+    const go = await vscode.window.showWarningMessage('Not connected to any host.', 'Connect');
+    if (go === 'Connect') await cmdConnect();
+    return;
+  }
+
+  const doc = vscode.window.activeTextEditor?.document;
+  if (!doc || doc.isUntitled) { vscode.window.showWarningMessage('Save the file before running.'); return; }
+  if (doc.isDirty) {
+    const saved = await doc.save();
+    if (!saved) return;
+  }
+
+  const client  = ssh.getClient(activeHost.id);
+  const homeDir = ssh.getHomeDir(activeHost.id);
+  if (!client || !homeDir) { vscode.window.showErrorMessage('Connection lost. Please reconnect.'); return; }
+
+  bar.setSyncing();
+  try {
+    const sftp = await ssh.getSftp(activeHost.id);
+    await sync.uploadFile(doc.fileName, activeHost, homeDir, sftp);
+    bar.setSyncOk();
+  } catch (e: any) {
+    bar.setSyncError(e.message);
+    vscode.window.showErrorMessage(`Sync failed: ${e.message}`);
+    return;
+  }
+
+  try {
+    await runner.runFile(client, doc.fileName, activeHost, homeDir, out);
+  } catch (e: any) {
+    vscode.window.showErrorMessage(`Run failed: ${e.message}`);
+  }
+}
+
+async function cmdSyncFile() {
+  if (!activeHost) { vscode.window.showWarningMessage('Not connected to any host.'); return; }
+  const doc = vscode.window.activeTextEditor?.document;
+  if (!doc || doc.isUntitled) { vscode.window.showWarningMessage('Open a saved file first.'); return; }
+  bar.setSyncing();
+  try {
+    const sftp = await ssh.getSftp(activeHost.id);
+    await sync.uploadFile(doc.fileName, activeHost, ssh.getHomeDir(activeHost.id)!, sftp);
+    bar.setSyncOk();
+    vscode.window.showInformationMessage('File synced.');
+  } catch (e: any) {
+    bar.setSyncError(e.message);
+    vscode.window.showErrorMessage(`Sync failed: ${e.message}`);
+  }
+}
+
+// ─── Misc ────────────────────────────────────────────────────────────────────
+
+async function cmdClearPassword() {
+  const hosts = getHosts();
+  if (!hosts.length) { vscode.window.showInformationMessage('No hosts configured.'); return; }
+  const pick = await vscode.window.showQuickPick(
+    hosts.map(h => ({ label: h.label, description: `${h.username}@${h.host}`, id: h.id })),
+    { placeHolder: 'Select host to clear saved password' },
+  );
+  if (!pick) return;
+  await creds.clearPassword(pick.id);
+  vscode.window.showInformationMessage(`Saved password cleared for "${pick.label}".`);
+}
+
+async function cmdOpenRemoteFile(node: FileNode) {
+  if (!node?.item || node.item.isDirectory) return;
+  try {
+    const sftp = await ssh.getSftp(node.hostId);
+    const tmpDir = path.join(os.tmpdir(), 'remote-run-preview');
+    fs.mkdirSync(tmpDir, { recursive: true });
+    const localTmp = path.join(tmpDir, path.basename(node.item.fullPath));
+    await new Promise<void>((resolve, reject) => {
+      sftp.fastGet(node.item.fullPath, localTmp, (err: Error | null | undefined) =>
+        err ? reject(err) : resolve(),
+      );
+    });
+    const doc = await vscode.workspace.openTextDocument(localTmp);
+    await vscode.window.showTextDocument(doc, { preview: true });
+  } catch (e: any) {
+    vscode.window.showErrorMessage(`Cannot open file: ${e.message}`);
+  }
+}
+
+// ─── Helper ──────────────────────────────────────────────────────────────────
+
+function ask(p: string, value?: string, placeHolder?: string): Thenable<string | undefined> {
+  return vscode.window.showInputBox({ prompt: p, value, placeHolder, ignoreFocusOut: true });
+}
+
+export function deactivate() {
+  ssh?.disconnectAll();
+}
