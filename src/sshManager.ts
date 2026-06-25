@@ -6,6 +6,7 @@ import { homeDirCommand } from './utils';
 interface ActiveConn {
   client: Client;
   homeDir: string;
+  sftp?: SFTPWrapper;   // persistent, reused across operations
 }
 
 export class SshManager {
@@ -20,10 +21,10 @@ export class SshManager {
     const existing = this.connections.get(host.id);
     if (existing) return existing.homeDir;
 
-    const client = await this.createClient(host, password);
+    const client  = await this.createClient(host, password);
     const homeDir = await this.resolveHomeDir(client, host);
-
-    this.connections.set(host.id, { client, homeDir });
+    const conn: ActiveConn = { client, homeDir };
+    this.connections.set(host.id, conn);
 
     const cleanup = () => {
       this.connections.delete(host.id);
@@ -51,8 +52,10 @@ export class SshManager {
   }
 
   private resolveHomeDir(client: Client, host: HostConfig): Promise<string> {
-    const cmd = homeDirCommand(host.remoteOs ?? 'linux');
-    const fallback = host.remoteOs === 'windows' ? 'C:/Users/' + host.username : '/home/' + host.username;
+    const cmd      = homeDirCommand(host.remoteOs ?? 'linux');
+    const fallback = host.remoteOs === 'windows'
+      ? 'C:/Users/' + host.username
+      : '/home/'    + host.username;
 
     return new Promise((resolve, reject) => {
       client.exec(cmd, (err, stream) => {
@@ -92,13 +95,21 @@ export class SshManager {
     return this.connections.get(hostId)?.homeDir;
   }
 
+  // Returns a cached SFTP session — creates one only on first call or after session loss.
+  // Reusing the session eliminates ~100ms SSH channel setup overhead per sync.
   getSftp(hostId: string): Promise<SFTPWrapper> {
     const conn = this.connections.get(hostId);
     if (!conn) return Promise.reject(new Error('Not connected'));
+    if (conn.sftp) return Promise.resolve(conn.sftp);
+
     return new Promise((resolve, reject) => {
       conn.client.sftp((err, sftp) => {
-        if (err) reject(err);
-        else resolve(sftp);
+        if (err) { reject(err); return; }
+        conn.sftp = sftp;
+        // Clear cache if the SFTP session itself closes (e.g. server-side timeout)
+        sftp.on('close', () => { if (conn.sftp === sftp) conn.sftp = undefined; });
+        sftp.on('error', () => { if (conn.sftp === sftp) conn.sftp = undefined; });
+        resolve(sftp);
       });
     });
   }

@@ -41,30 +41,42 @@
       { "command": "remoteRun.connectHost",     "title": "Connect",              "category": "Remote Run", "icon": "$(plug)" },
       { "command": "remoteRun.disconnectHost",  "title": "Disconnect",           "category": "Remote Run", "icon": "$(debug-disconnect)" },
       { "command": "remoteRun.deleteHost",      "title": "Remove Host",          "category": "Remote Run", "icon": "$(trash)" },
-      { "command": "remoteRun.runFile",         "title": "Run Current File",     "category": "Remote Run", "icon": "$(play)" },
+      { "command": "remoteRun.runFile",         "title": "Run on Remote",        "category": "Remote Run", "icon": "$(play-circle)" },
       { "command": "remoteRun.syncFile",        "title": "Sync Current File",    "category": "Remote Run", "icon": "$(cloud-upload)" },
-      { "command": "remoteRun.clearPassword",   "title": "Clear Saved Password", "category": "Remote Run" },
+      { "command": "remoteRun.clearPassword",    "title": "Clear Saved Password", "category": "Remote Run" },
       { "command": "remoteRun.refreshExplorer", "title": "Refresh",              "category": "Remote Run", "icon": "$(refresh)" },
-      { "command": "remoteRun.openRemoteFile",  "title": "Open Remote File",     "category": "Remote Run" }
+      { "command": "remoteRun.openRemoteFile",  "title": "Open Remote File",     "category": "Remote Run" },
+      { "command": "remoteRun.openTerminal",    "title": "Open SSH Terminal",    "category": "Remote Run", "icon": "$(terminal)" },
+      { "command": "remoteRun.newFolder",       "title": "New Folder",           "category": "Remote Run", "icon": "$(new-folder)" },
+      { "command": "remoteRun.newFile",         "title": "New File",             "category": "Remote Run", "icon": "$(new-file)" },
+      { "command": "remoteRun.deleteRemoteItem","title": "Delete",               "category": "Remote Run", "icon": "$(trash)" }
     ],
     "menus": {
       "editor/title": [
-        { "command": "remoteRun.runFile",  "when": "editorIsOpen", "group": "navigation" },
-        { "command": "remoteRun.syncFile", "when": "editorIsOpen", "group": "navigation" }
+        { "command": "remoteRun.runFile", "when": "editorIsOpen && remoteRun.connected", "group": "navigation" }
       ],
       "view/title": [
         { "command": "remoteRun.addHost",         "when": "view == remoteRunHosts", "group": "navigation@1" },
         { "command": "remoteRun.refreshExplorer", "when": "view == remoteRunHosts", "group": "navigation@2" }
       ],
       "view/item/context": [
-        { "command": "remoteRun.connectHost",    "when": "view == remoteRunHosts && viewItem == host-disconnected", "group": "inline@1" },
-        { "command": "remoteRun.disconnectHost", "when": "view == remoteRunHosts && viewItem == host-connected",    "group": "inline@1" },
-        { "command": "remoteRun.editHost",       "when": "view == remoteRunHosts && viewItem =~ /^host/",          "group": "inline@2" },
-        { "command": "remoteRun.deleteHost",     "when": "view == remoteRunHosts && viewItem =~ /^host/",          "group": "inline@3" },
-        { "command": "remoteRun.connectHost",    "when": "view == remoteRunHosts && viewItem == host-disconnected", "group": "1_host@1" },
-        { "command": "remoteRun.disconnectHost", "when": "view == remoteRunHosts && viewItem == host-connected",    "group": "1_host@1" },
-        { "command": "remoteRun.editHost",       "when": "view == remoteRunHosts && viewItem =~ /^host/",          "group": "2_host@1" },
-        { "command": "remoteRun.deleteHost",     "when": "view == remoteRunHosts && viewItem =~ /^host/",          "group": "2_host@2" }
+        { "command": "remoteRun.connectHost",     "when": "view == remoteRunHosts && viewItem == host-disconnected",  "group": "inline@1" },
+        { "command": "remoteRun.disconnectHost",  "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "inline@1" },
+        { "command": "remoteRun.openTerminal",    "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "inline@2" },
+        { "command": "remoteRun.editHost",        "when": "view == remoteRunHosts && viewItem =~ /^host/",            "group": "inline@3" },
+        { "command": "remoteRun.deleteHost",      "when": "view == remoteRunHosts && viewItem =~ /^host/",            "group": "inline@4" },
+        { "command": "remoteRun.connectHost",     "when": "view == remoteRunHosts && viewItem == host-disconnected",  "group": "1_host@1" },
+        { "command": "remoteRun.disconnectHost",  "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "1_host@1" },
+        { "command": "remoteRun.openTerminal",    "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "1_host@2" },
+        { "command": "remoteRun.newFolder",       "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "2_files@1" },
+        { "command": "remoteRun.newFile",         "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "2_files@2" },
+        { "command": "remoteRun.editHost",        "when": "view == remoteRunHosts && viewItem =~ /^host/",            "group": "3_host@1" },
+        { "command": "remoteRun.deleteHost",      "when": "view == remoteRunHosts && viewItem =~ /^host/",            "group": "3_host@2" },
+        { "command": "remoteRun.newFolder",       "when": "view == remoteRunHosts && viewItem == remote-dir",         "group": "inline@1" },
+        { "command": "remoteRun.newFile",         "when": "view == remoteRunHosts && viewItem == remote-dir",         "group": "inline@2" },
+        { "command": "remoteRun.newFolder",       "when": "view == remoteRunHosts && viewItem == remote-dir",         "group": "1_create@1" },
+        { "command": "remoteRun.newFile",         "when": "view == remoteRunHosts && viewItem == remote-dir",         "group": "1_create@2" },
+        { "command": "remoteRun.deleteRemoteItem","when": "view == remoteRunHosts && viewItem =~ /^remote-/",         "group": "2_delete@1" }
       ]
     },
     "configuration": {

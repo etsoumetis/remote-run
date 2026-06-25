@@ -10,7 +10,9 @@ import { SyncManager } from './syncManager';
 import { RunManager } from './runManager';
 import { StatusBarManager } from './statusBar';
 import { RemoteRunTreeProvider } from './treeView';
-import type { HostNode, FileNode } from './treeView';
+import type { HostNode, FileNode, TreeNode } from './treeView';
+import { SshPseudoterminal } from './sshTerminal';
+import { expandHome } from './utils';
 
 let activeHost: HostConfig | undefined;
 let ssh: SshManager;
@@ -34,6 +36,7 @@ export function activate(context: vscode.ExtensionContext) {
     if (activeHost?.id === hostId) {
       activeHost = undefined;
       bar.setDisconnected();
+      setConnectedCtx(false);
     }
     tree.refresh();
     vscode.window.showWarningMessage('Remote Run: connection lost.');
@@ -69,9 +72,13 @@ export function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('remoteRun.deleteHost',      cmdDeleteHost),
     vscode.commands.registerCommand('remoteRun.runFile',         cmdRunFile),
     vscode.commands.registerCommand('remoteRun.syncFile',        cmdSyncFile),
-    vscode.commands.registerCommand('remoteRun.clearPassword',   cmdClearPassword),
+    vscode.commands.registerCommand('remoteRun.clearPassword',    cmdClearPassword),
     vscode.commands.registerCommand('remoteRun.refreshExplorer', () => tree.refresh()),
     vscode.commands.registerCommand('remoteRun.openRemoteFile',  cmdOpenRemoteFile),
+    vscode.commands.registerCommand('remoteRun.openTerminal',    cmdOpenTerminal),
+    vscode.commands.registerCommand('remoteRun.newFolder',       cmdNewFolder),
+    vscode.commands.registerCommand('remoteRun.newFile',         cmdNewFile),
+    vscode.commands.registerCommand('remoteRun.deleteRemoteItem',cmdDeleteRemoteItem),
   );
 }
 
@@ -84,7 +91,7 @@ async function cmdAddHost() {
   if (!host) return;
   const portStr  = await ask('SSH port', '22');
   if (portStr === undefined) return;
-  const username = await ask('Username', 'pi');
+  const username = await ask('Username', '', 'pi, ubuntu, admin, arduino...');
   if (!username) return;
 
   const osPick = await vscode.window.showQuickPick([
@@ -215,12 +222,12 @@ async function cmdConnect() {
 }
 
 async function connectToHost(host: HostConfig) {
-  // Switch active host if different one is connected
   if (activeHost && activeHost.id !== host.id) disconnectFromHost(activeHost, false);
 
   if (ssh.isConnected(host.id)) {
     activeHost = host;
     bar.setConnected(host.label);
+    setConnectedCtx(true);
     tree.refresh();
     return;
   }
@@ -243,6 +250,7 @@ async function connectToHost(host: HostConfig) {
         await creds.setPassword(host.id, password!);
         activeHost = host;
         bar.setConnected(host.label);
+        setConnectedCtx(true);
         tree.refresh();
         vscode.window.showInformationMessage(`Connected to ${host.label}.`);
       } catch (e: any) {
@@ -262,6 +270,7 @@ function disconnectFromHost(host: HostConfig, showMsg = true): void {
   if (activeHost?.id === host.id) {
     activeHost = undefined;
     bar.setDisconnected();
+    setConnectedCtx(false);
   }
   tree.refresh();
   if (showMsg) vscode.window.showInformationMessage(`Disconnected from ${host.label}.`);
@@ -354,10 +363,105 @@ async function cmdOpenRemoteFile(node: FileNode) {
   }
 }
 
+// ─── SSH Terminal ─────────────────────────────────────────────────────────────
+
+async function cmdOpenTerminal(node?: HostNode) {
+  const host = node?.config ?? activeHost;
+  if (!host) { vscode.window.showWarningMessage('Not connected to any host.'); return; }
+  const client = ssh.getClient(host.id);
+  if (!client) { vscode.window.showWarningMessage(`Not connected to ${host.label}.`); return; }
+  const pty      = new SshPseudoterminal(client);
+  const terminal = vscode.window.createTerminal({ name: `SSH: ${host.label}`, pty });
+  terminal.show();
+}
+
+// ─── Remote file operations ───────────────────────────────────────────────────
+
+async function cmdNewFolder(node?: TreeNode) {
+  const { hostId, dir } = resolveDir(node);
+  if (!hostId) { vscode.window.showWarningMessage('Not connected to any host.'); return; }
+  const name = await vscode.window.showInputBox({ prompt: 'New folder name', placeHolder: 'my-folder', ignoreFocusOut: true });
+  if (!name?.trim()) return;
+  try {
+    const sftp = await ssh.getSftp(hostId);
+    await new Promise<void>((resolve, reject) => {
+      sftp.mkdir(`${dir}/${name.trim()}`, err => err ? reject(err) : resolve());
+    });
+    tree.refresh();
+  } catch (e: any) {
+    vscode.window.showErrorMessage(`Failed to create folder: ${e.message}`);
+  }
+}
+
+async function cmdNewFile(node?: TreeNode) {
+  const { hostId, dir } = resolveDir(node);
+  if (!hostId) { vscode.window.showWarningMessage('Not connected to any host.'); return; }
+  const name = await vscode.window.showInputBox({ prompt: 'New file name', placeHolder: 'script.py', ignoreFocusOut: true });
+  if (!name?.trim()) return;
+  const remotePath = `${dir}/${name.trim()}`;
+  try {
+    const sftp = await ssh.getSftp(hostId);
+    await new Promise<void>((resolve, reject) => {
+      sftp.open(remotePath, 'w', (err, handle) => {
+        if (err) { reject(err); return; }
+        sftp.close(handle, err2 => err2 ? reject(err2) : resolve());
+      });
+    });
+    tree.refresh();
+  } catch (e: any) {
+    vscode.window.showErrorMessage(`Failed to create file: ${e.message}`);
+  }
+}
+
+async function cmdDeleteRemoteItem(node?: FileNode) {
+  if (!node?.item) return;
+  const ok = await vscode.window.showWarningMessage(
+    `Delete "${node.item.name}"?`, { modal: true }, 'Delete',
+  );
+  if (ok !== 'Delete') return;
+  try {
+    const sftp = await ssh.getSftp(node.hostId);
+    await new Promise<void>((resolve, reject) => {
+      if (node.item.isDirectory) {
+        sftp.rmdir(node.item.fullPath, err => err ? reject(err) : resolve());
+      } else {
+        sftp.unlink(node.item.fullPath, err => err ? reject(err) : resolve());
+      }
+    });
+    tree.refresh();
+  } catch (e: any) {
+    const hint = node.item.isDirectory ? ' (directory must be empty)' : '';
+    vscode.window.showErrorMessage(`Failed to delete: ${e.message}${hint}`);
+  }
+}
+
+function resolveDir(node?: TreeNode): { hostId: string | undefined; dir: string } {
+  if (!node) {
+    if (!activeHost) return { hostId: undefined, dir: '/' };
+    const home = ssh.getHomeDir(activeHost.id) ?? '/';
+    return { hostId: activeHost.id, dir: expandHome(activeHost.remotePath, home, activeHost.remoteOs) };
+  }
+  if (node.kind === 'host') {
+    if (!ssh.isConnected(node.config.id)) return { hostId: undefined, dir: '/' };
+    const home = ssh.getHomeDir(node.config.id) ?? '/';
+    return { hostId: node.config.id, dir: expandHome(node.config.remotePath, home, node.config.remoteOs) };
+  }
+  // FileNode — use the directory itself, or parent if it's a file
+  if (node.item.isDirectory) {
+    return { hostId: node.hostId, dir: node.item.fullPath };
+  }
+  const parent = node.item.fullPath.slice(0, node.item.fullPath.lastIndexOf('/')) || '/';
+  return { hostId: node.hostId, dir: parent };
+}
+
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
 function ask(p: string, value?: string, placeHolder?: string): Thenable<string | undefined> {
   return vscode.window.showInputBox({ prompt: p, value, placeHolder, ignoreFocusOut: true });
+}
+
+function setConnectedCtx(connected: boolean): void {
+  vscode.commands.executeCommand('setContext', 'remoteRun.connected', connected);
 }
 
 export function deactivate() {
