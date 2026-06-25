@@ -4,7 +4,6 @@ node_modules
 .vscode-test/
 .vscode-test.mjs
 *.vsix
-CLAUDE_1.md
 .claude/
 .vscode/
 CHANGELOG.md
