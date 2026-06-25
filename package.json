@@ -2,10 +2,14 @@
   "name": "remote-run",
   "displayName": "Remote Run",
   "description": "Write code locally, run it on a remote machine via SSH — auto-sync on save, integrated terminal output.",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "publisher": "EfthymiosTsoumetis",
   "icon": "icon.png",
-  "license": "MIT",
+  "license": "CC-BY-NC-SA-4.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/etsoumetis/remote-run"
+  },
   "keywords": ["ssh", "remote", "sync", "raspberry pi", "run"],
   "categories": ["Other"],
   "engines": {
