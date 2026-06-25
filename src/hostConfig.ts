@@ -10,6 +10,7 @@ export interface HostConfig {
   username: string;
   remotePath: string;
   remoteOs: RemoteOs;
+  useSudo: boolean;
 }
 
 export function generateId(): string {
@@ -19,7 +20,7 @@ export function generateId(): string {
 export function getHosts(): HostConfig[] {
   // Read as any[] so we can safely back-fill fields added in later versions
   const raw = vscode.workspace.getConfiguration('remoteRun').get<any[]>('hosts', []);
-  return raw.map(h => ({ ...h, remoteOs: (h.remoteOs ?? 'linux') as RemoteOs }));
+  return raw.map(h => ({ ...h, remoteOs: (h.remoteOs ?? 'linux') as RemoteOs, useSudo: h.useSudo ?? false }));
 }
 
 async function saveHosts(hosts: HostConfig[]): Promise<void> {

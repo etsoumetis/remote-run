@@ -108,6 +108,12 @@ async function cmdAddHost() {
   );
   if (remotePath === undefined) return;
 
+  const sudoPick = await vscode.window.showQuickPick([
+    { label: '$(circle-slash) No',                                  value: false },
+    { label: '$(shield) Yes — use SSH password for sudo automatically', value: true  },
+  ], { placeHolder: 'Run scripts with sudo? (needed for GPIO, hardware access, etc.)' });
+  if (!sudoPick) return;
+
   await addHost({
     id: generateId(),
     label,
@@ -116,6 +122,7 @@ async function cmdAddHost() {
     username,
     remotePath: remotePath.trim() || '~',
     remoteOs: osPick.value,
+    useSudo: sudoPick.value,
   });
   tree.refresh();
   vscode.window.showInformationMessage(`Host "${label}" added.`);
@@ -158,10 +165,17 @@ async function cmdEditHost(node?: HostNode) {
   );
   if (remotePath === undefined) return;
 
+  const sudoPick = await vscode.window.showQuickPick([
+    { label: '$(circle-slash) No',                                      value: false },
+    { label: '$(shield) Yes — use SSH password for sudo automatically', value: true  },
+  ], { placeHolder: 'Run scripts with sudo? (needed for GPIO, hardware access, etc.)' });
+  if (!sudoPick) return;
+
   const hosts = getHosts().map(h =>
     h.id === host!.id
       ? { ...h, remoteOs: osPick.value, label, host: hostAddr,
-          port: parseInt(portStr, 10) || 22, username, remotePath: remotePath.trim() || '~' }
+          port: parseInt(portStr, 10) || 22, username,
+          remotePath: remotePath.trim() || '~', useSudo: sudoPick.value }
       : h,
   );
   await vscode.workspace
@@ -327,7 +341,15 @@ async function cmdRunFile() {
     return;
   }
 
-  const fullCmd = `${cmd} "${remotePath}"`;
+  let fullCmd = `${cmd} "${remotePath}"`;
+  if (activeHost.useSudo) {
+    const password = await creds.getPassword(activeHost.id);
+    if (password) {
+      const pw = password.replace(/'/g, "'\\''");
+      fullCmd = `printf '%s\\n' '${pw}' | sudo -S -p '' ${cmd} "${remotePath}"`;
+    }
+  }
+
   const filename = remotePath.split('/').pop() ?? remotePath;
   const pty = new SshPseudoterminal(client, fullCmd);
   const terminal = vscode.window.createTerminal({ name: `Run: ${filename} [${activeHost.label}]`, pty });

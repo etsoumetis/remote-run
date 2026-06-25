@@ -1,8 +1,11 @@
 .vscode/**
 .vscode-test/**
 src/**
+.claude/**
 .gitignore
 .yarnrc
+*.md
+!readme.md
 **/tsconfig.json
 **/eslint.config.mjs
 **/*.map
