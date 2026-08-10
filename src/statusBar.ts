@@ -11,10 +11,15 @@ export class StatusBarManager implements vscode.Disposable {
     this.setDisconnected();
   }
 
-  setConnected(label: string): void {
-    this.hostItem.text = `$(remote) ${label}`;
-    this.hostItem.tooltip = 'Remote Run: connected — click to disconnect';
-    this.hostItem.command = 'remoteRun.disconnect';
+  setConnected(label: string, connectedCount = 1): void {
+    const extra = connectedCount > 1 ? ` +${connectedCount - 1}` : '';
+    this.hostItem.text = `$(remote) ${label}${extra}`;
+    this.hostItem.tooltip = connectedCount > 1
+      ? `Remote Run: ${connectedCount} hosts connected, "${label}" is active — click to switch`
+      : 'Remote Run: connected — click to switch or disconnect';
+    // Always the picker: with several hosts up, disconnecting on a stray click
+    // would be a nasty surprise.
+    this.hostItem.command = 'remoteRun.switchActiveHost';
     this.hostItem.show();
     this.syncItem.text = '$(circle-large-outline) Idle';
     this.syncItem.tooltip = undefined;

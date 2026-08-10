@@ -1,8 +1,8 @@
 {
   "name": "remote-run",
   "displayName": "Remote Run",
-  "description": "Write code locally, run it on a remote machine via SSH — auto-sync on save, integrated terminal output.",
-  "version": "0.0.6",
+  "description": "Edit locally, run over SSH. Auto-sync on save, multiple hosts at once, file transfers in every direction, and streamed preview of images, video, audio and PDFs — without downloading them.",
+  "version": "1.0.2",
   "publisher": "EfthymiosTsoumetis",
   "icon": "icon.png",
   "license": "CC-BY-NC-SA-4.0",
@@ -10,8 +10,20 @@
     "type": "git",
     "url": "https://github.com/etsoumetis/remote-run"
   },
-  "keywords": ["ssh", "remote", "sync", "raspberry pi", "run"],
-  "categories": ["Other"],
+  "keywords": [
+    "ssh",
+    "sftp",
+    "remote",
+    "raspberry pi",
+    "embedded",
+    "iot",
+    "sync",
+    "run",
+    "preview"
+  ],
+  "categories": [
+    "Other"
+  ],
   "engines": {
     "vscode": "^1.125.0"
   },
@@ -42,56 +54,499 @@
       ]
     },
     "commands": [
-      { "command": "remoteRun.addHost",         "title": "Add Host",             "category": "Remote Run", "icon": "$(add)" },
-      { "command": "remoteRun.removeHost",      "title": "Remove Host",          "category": "Remote Run" },
-      { "command": "remoteRun.editHost",        "title": "Edit Host",            "category": "Remote Run", "icon": "$(edit)" },
-      { "command": "remoteRun.connect",         "title": "Connect to Host",      "category": "Remote Run" },
-      { "command": "remoteRun.disconnect",      "title": "Disconnect",           "category": "Remote Run" },
-      { "command": "remoteRun.connectHost",     "title": "Connect",              "category": "Remote Run", "icon": "$(plug)" },
-      { "command": "remoteRun.disconnectHost",  "title": "Disconnect",           "category": "Remote Run", "icon": "$(debug-disconnect)" },
-      { "command": "remoteRun.deleteHost",      "title": "Remove Host",          "category": "Remote Run", "icon": "$(trash)" },
-      { "command": "remoteRun.runFile",         "title": "Run on Remote",        "category": "Remote Run", "icon": "$(play-circle)" },
-      { "command": "remoteRun.syncFile",        "title": "Sync Current File",    "category": "Remote Run", "icon": "$(cloud-upload)" },
-      { "command": "remoteRun.clearPassword",    "title": "Clear Saved Password", "category": "Remote Run" },
-      { "command": "remoteRun.refreshExplorer", "title": "Refresh",              "category": "Remote Run", "icon": "$(refresh)" },
-      { "command": "remoteRun.openRemoteFile",  "title": "Open Remote File",     "category": "Remote Run" },
-      { "command": "remoteRun.openTerminal",      "title": "Open SSH Terminal",    "category": "Remote Run", "icon": "$(terminal)" },
-      { "command": "remoteRun.newFolder",       "title": "New Folder",           "category": "Remote Run", "icon": "$(new-folder)" },
-      { "command": "remoteRun.newFile",         "title": "New File",             "category": "Remote Run", "icon": "$(new-file)" },
-      { "command": "remoteRun.renameRemoteItem","title": "Rename",               "category": "Remote Run", "icon": "$(edit)" },
-      { "command": "remoteRun.deleteRemoteItem","title": "Delete",               "category": "Remote Run", "icon": "$(trash)" },
-      { "command": "remoteRun.stopFile",        "title": "Stop",                 "category": "Remote Run", "icon": "$(debug-stop)" }
+      {
+        "command": "remoteRun.addHost",
+        "title": "Add Host",
+        "category": "Remote Run",
+        "icon": "$(add)"
+      },
+      {
+        "command": "remoteRun.removeHost",
+        "title": "Remove Host",
+        "category": "Remote Run"
+      },
+      {
+        "command": "remoteRun.editHost",
+        "title": "Edit Host",
+        "category": "Remote Run",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "remoteRun.connect",
+        "title": "Connect to Host",
+        "category": "Remote Run"
+      },
+      {
+        "command": "remoteRun.disconnect",
+        "title": "Disconnect",
+        "category": "Remote Run"
+      },
+      {
+        "command": "remoteRun.connectHost",
+        "title": "Connect",
+        "category": "Remote Run",
+        "icon": "$(plug)"
+      },
+      {
+        "command": "remoteRun.disconnectHost",
+        "title": "Disconnect",
+        "category": "Remote Run",
+        "icon": "$(debug-disconnect)"
+      },
+      {
+        "command": "remoteRun.deleteHost",
+        "title": "Remove Host",
+        "category": "Remote Run",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "remoteRun.runFile",
+        "title": "Run on Remote",
+        "category": "Remote Run",
+        "icon": "$(play-circle)"
+      },
+      {
+        "command": "remoteRun.syncFile",
+        "title": "Sync Current File",
+        "category": "Remote Run",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "remoteRun.clearPassword",
+        "title": "Clear Saved Password",
+        "category": "Remote Run"
+      },
+      {
+        "command": "remoteRun.refreshExplorer",
+        "title": "Refresh",
+        "category": "Remote Run",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "remoteRun.openRemoteFile",
+        "title": "Open Remote File",
+        "category": "Remote Run"
+      },
+      {
+        "command": "remoteRun.openTerminal",
+        "title": "Open SSH Terminal",
+        "category": "Remote Run",
+        "icon": "$(terminal)"
+      },
+      {
+        "command": "remoteRun.newFolder",
+        "title": "New Folder",
+        "category": "Remote Run",
+        "icon": "$(new-folder)"
+      },
+      {
+        "command": "remoteRun.newFile",
+        "title": "New File",
+        "category": "Remote Run",
+        "icon": "$(new-file)"
+      },
+      {
+        "command": "remoteRun.renameRemoteItem",
+        "title": "Rename",
+        "category": "Remote Run",
+        "icon": "$(edit)"
+      },
+      {
+        "command": "remoteRun.deleteRemoteItem",
+        "title": "Delete",
+        "category": "Remote Run",
+        "icon": "$(trash)"
+      },
+      {
+        "command": "remoteRun.stopFile",
+        "title": "Stop",
+        "category": "Remote Run",
+        "icon": "$(debug-stop)"
+      },
+      {
+        "command": "remoteRun.disconnectAll",
+        "title": "Disconnect All Hosts",
+        "category": "Remote Run"
+      },
+      {
+        "command": "remoteRun.setActiveHost",
+        "title": "Set as Active Host",
+        "category": "Remote Run",
+        "icon": "$(star-empty)"
+      },
+      {
+        "command": "remoteRun.switchActiveHost",
+        "title": "Switch Active Host",
+        "category": "Remote Run"
+      },
+      {
+        "command": "remoteRun.previewRemoteFile",
+        "title": "Preview",
+        "category": "Remote Run",
+        "icon": "$(preview)"
+      },
+      {
+        "command": "remoteRun.openAsText",
+        "title": "Open as Text",
+        "category": "Remote Run"
+      },
+      {
+        "command": "remoteRun.copyRemoteItem",
+        "title": "Copy",
+        "category": "Remote Run",
+        "icon": "$(copy)"
+      },
+      {
+        "command": "remoteRun.pasteRemoteItem",
+        "title": "Paste Here",
+        "category": "Remote Run",
+        "icon": "$(clippy)"
+      },
+      {
+        "command": "remoteRun.sendToHost",
+        "title": "Send to Host…",
+        "category": "Remote Run",
+        "icon": "$(arrow-swap)"
+      },
+      {
+        "command": "remoteRun.clearPreviewCache",
+        "title": "Clear Preview Cache",
+        "category": "Remote Run"
+      },
+      {
+        "command": "remoteRun.uploadFiles",
+        "title": "Upload Files from This Computer…",
+        "category": "Remote Run",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "remoteRun.uploadFolder",
+        "title": "Upload Folder from This Computer…",
+        "category": "Remote Run",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "remoteRun.sendLocalToHost",
+        "title": "Send to Remote Host…",
+        "category": "Remote Run",
+        "icon": "$(cloud-upload)"
+      },
+      {
+        "command": "remoteRun.downloadToComputer",
+        "title": "Download to This Computer…",
+        "category": "Remote Run",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "remoteRun.openExternally",
+        "title": "Open with Default App",
+        "category": "Remote Run",
+        "icon": "$(link-external)"
+      }
     ],
     "menus": {
       "editor/title": [
-        { "command": "remoteRun.runFile",  "when": "editorIsOpen && remoteRun.connected && !remoteRun.running", "group": "navigation" },
-        { "command": "remoteRun.stopFile", "when": "remoteRun.running",                                         "group": "navigation" }
+        {
+          "command": "remoteRun.runFile",
+          "when": "editorIsOpen && remoteRun.connected && !remoteRun.running",
+          "group": "navigation"
+        },
+        {
+          "command": "remoteRun.stopFile",
+          "when": "remoteRun.running",
+          "group": "navigation"
+        }
       ],
       "view/title": [
-        { "command": "remoteRun.addHost",         "when": "view == remoteRunHosts", "group": "navigation@1" },
-        { "command": "remoteRun.refreshExplorer", "when": "view == remoteRunHosts", "group": "navigation@2" }
+        {
+          "command": "remoteRun.addHost",
+          "when": "view == remoteRunHosts",
+          "group": "navigation@1"
+        },
+        {
+          "command": "remoteRun.uploadFiles",
+          "when": "view == remoteRunHosts && remoteRun.connected",
+          "group": "navigation@2"
+        },
+        {
+          "command": "remoteRun.refreshExplorer",
+          "when": "view == remoteRunHosts",
+          "group": "navigation@3"
+        },
+        {
+          "command": "remoteRun.uploadFolder",
+          "when": "view == remoteRunHosts && remoteRun.connected",
+          "group": "1_upload@1"
+        }
       ],
       "view/item/context": [
-        { "command": "remoteRun.connectHost",     "when": "view == remoteRunHosts && viewItem == host-disconnected",  "group": "inline@1" },
-        { "command": "remoteRun.disconnectHost",  "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "inline@1" },
-        { "command": "remoteRun.openTerminal",    "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "inline@2" },
-        { "command": "remoteRun.editHost",        "when": "view == remoteRunHosts && viewItem =~ /^host/",            "group": "inline@3" },
-        { "command": "remoteRun.deleteHost",      "when": "view == remoteRunHosts && viewItem =~ /^host/",            "group": "inline@4" },
-        { "command": "remoteRun.connectHost",     "when": "view == remoteRunHosts && viewItem == host-disconnected",  "group": "1_host@1" },
-        { "command": "remoteRun.disconnectHost",  "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "1_host@1" },
-        { "command": "remoteRun.openTerminal",    "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "1_host@2" },
-        { "command": "remoteRun.newFolder",       "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "2_files@1" },
-        { "command": "remoteRun.newFile",         "when": "view == remoteRunHosts && viewItem == host-connected",     "group": "2_files@2" },
-        { "command": "remoteRun.editHost",        "when": "view == remoteRunHosts && viewItem =~ /^host/",            "group": "3_host@1" },
-        { "command": "remoteRun.deleteHost",      "when": "view == remoteRunHosts && viewItem =~ /^host/",            "group": "3_host@2" },
-        { "command": "remoteRun.newFolder",        "when": "view == remoteRunHosts && viewItem == remote-dir",  "group": "inline@1" },
-        { "command": "remoteRun.newFile",          "when": "view == remoteRunHosts && viewItem == remote-dir",  "group": "inline@2" },
-        { "command": "remoteRun.renameRemoteItem", "when": "view == remoteRunHosts && viewItem == remote-dir",  "group": "inline@3" },
-        { "command": "remoteRun.renameRemoteItem", "when": "view == remoteRunHosts && viewItem == remote-file", "group": "inline@1" },
-        { "command": "remoteRun.newFolder",        "when": "view == remoteRunHosts && viewItem =~ /^remote/",   "group": "1_create@1" },
-        { "command": "remoteRun.newFile",          "when": "view == remoteRunHosts && viewItem =~ /^remote/",   "group": "1_create@2" },
-        { "command": "remoteRun.renameRemoteItem", "when": "view == remoteRunHosts && viewItem =~ /^remote/",   "group": "2_edit@1" },
-        { "command": "remoteRun.deleteRemoteItem", "when": "view == remoteRunHosts && viewItem =~ /^remote/",   "group": "3_delete@1" }
+        {
+          "command": "remoteRun.connectHost",
+          "when": "view == remoteRunHosts && viewItem == host-disconnected",
+          "group": "inline@1"
+        },
+        {
+          "command": "remoteRun.setActiveHost",
+          "when": "view == remoteRunHosts && viewItem == host-connected",
+          "group": "inline@1"
+        },
+        {
+          "command": "remoteRun.disconnectHost",
+          "when": "view == remoteRunHosts && viewItem =~ /^host-(connected|active)$/",
+          "group": "inline@2"
+        },
+        {
+          "command": "remoteRun.openTerminal",
+          "when": "view == remoteRunHosts && viewItem =~ /^host-(connected|active)$/",
+          "group": "inline@3"
+        },
+        {
+          "command": "remoteRun.pasteRemoteItem",
+          "when": "view == remoteRunHosts && viewItem =~ /^host-(connected|active)$/ && remoteRun.hasClipboard",
+          "group": "inline@4"
+        },
+        {
+          "command": "remoteRun.editHost",
+          "when": "view == remoteRunHosts && viewItem =~ /^host/",
+          "group": "inline@5"
+        },
+        {
+          "command": "remoteRun.deleteHost",
+          "when": "view == remoteRunHosts && viewItem =~ /^host/",
+          "group": "inline@6"
+        },
+        {
+          "command": "remoteRun.connectHost",
+          "when": "view == remoteRunHosts && viewItem == host-disconnected",
+          "group": "1_host@1"
+        },
+        {
+          "command": "remoteRun.setActiveHost",
+          "when": "view == remoteRunHosts && viewItem == host-connected",
+          "group": "1_host@1"
+        },
+        {
+          "command": "remoteRun.disconnectHost",
+          "when": "view == remoteRunHosts && viewItem =~ /^host-(connected|active)$/",
+          "group": "1_host@2"
+        },
+        {
+          "command": "remoteRun.openTerminal",
+          "when": "view == remoteRunHosts && viewItem =~ /^host-(connected|active)$/",
+          "group": "1_host@3"
+        },
+        {
+          "command": "remoteRun.newFolder",
+          "when": "view == remoteRunHosts && viewItem =~ /^host-(connected|active)$/",
+          "group": "2_files@1"
+        },
+        {
+          "command": "remoteRun.newFile",
+          "when": "view == remoteRunHosts && viewItem =~ /^host-(connected|active)$/",
+          "group": "2_files@2"
+        },
+        {
+          "command": "remoteRun.uploadFiles",
+          "when": "view == remoteRunHosts && viewItem =~ /^host-(connected|active)$/",
+          "group": "2_files@3"
+        },
+        {
+          "command": "remoteRun.uploadFolder",
+          "when": "view == remoteRunHosts && viewItem =~ /^host-(connected|active)$/",
+          "group": "2_files@4"
+        },
+        {
+          "command": "remoteRun.uploadFiles",
+          "when": "view == remoteRunHosts && viewItem =~ /^host-(connected|active)$/",
+          "group": "inline@4"
+        },
+        {
+          "command": "remoteRun.pasteRemoteItem",
+          "when": "view == remoteRunHosts && viewItem =~ /^host-(connected|active)$/ && remoteRun.hasClipboard",
+          "group": "2_files@4"
+        },
+        {
+          "command": "remoteRun.editHost",
+          "when": "view == remoteRunHosts && viewItem =~ /^host/",
+          "group": "3_host@1"
+        },
+        {
+          "command": "remoteRun.deleteHost",
+          "when": "view == remoteRunHosts && viewItem =~ /^host/",
+          "group": "3_host@2"
+        },
+        {
+          "command": "remoteRun.newFolder",
+          "when": "view == remoteRunHosts && viewItem == remote-dir",
+          "group": "inline@1"
+        },
+        {
+          "command": "remoteRun.newFile",
+          "when": "view == remoteRunHosts && viewItem == remote-dir",
+          "group": "inline@2"
+        },
+        {
+          "command": "remoteRun.uploadFiles",
+          "when": "view == remoteRunHosts && viewItem == remote-dir",
+          "group": "inline@3"
+        },
+        {
+          "command": "remoteRun.pasteRemoteItem",
+          "when": "view == remoteRunHosts && viewItem == remote-dir && remoteRun.hasClipboard",
+          "group": "inline@4"
+        },
+        {
+          "command": "remoteRun.renameRemoteItem",
+          "when": "view == remoteRunHosts && viewItem == remote-dir",
+          "group": "inline@5"
+        },
+        {
+          "command": "remoteRun.sendToHost",
+          "when": "view == remoteRunHosts && viewItem == remote-file",
+          "group": "inline@1"
+        },
+        {
+          "command": "remoteRun.renameRemoteItem",
+          "when": "view == remoteRunHosts && viewItem == remote-file",
+          "group": "inline@2"
+        },
+        {
+          "command": "remoteRun.previewRemoteFile",
+          "when": "view == remoteRunHosts && viewItem == remote-file",
+          "group": "0_open@1"
+        },
+        {
+          "command": "remoteRun.openAsText",
+          "when": "view == remoteRunHosts && viewItem == remote-file",
+          "group": "0_open@2"
+        },
+        {
+          "command": "remoteRun.newFolder",
+          "when": "view == remoteRunHosts && viewItem =~ /^remote/",
+          "group": "1_create@1"
+        },
+        {
+          "command": "remoteRun.newFile",
+          "when": "view == remoteRunHosts && viewItem =~ /^remote/",
+          "group": "1_create@2"
+        },
+        {
+          "command": "remoteRun.uploadFiles",
+          "when": "view == remoteRunHosts && viewItem == remote-dir",
+          "group": "1_create@3"
+        },
+        {
+          "command": "remoteRun.uploadFolder",
+          "when": "view == remoteRunHosts && viewItem == remote-dir",
+          "group": "1_create@4"
+        },
+        {
+          "command": "remoteRun.copyRemoteItem",
+          "when": "view == remoteRunHosts && viewItem =~ /^remote/",
+          "group": "2_transfer@1"
+        },
+        {
+          "command": "remoteRun.pasteRemoteItem",
+          "when": "view == remoteRunHosts && viewItem =~ /^remote/ && remoteRun.hasClipboard",
+          "group": "2_transfer@2"
+        },
+        {
+          "command": "remoteRun.sendToHost",
+          "when": "view == remoteRunHosts && viewItem =~ /^remote/",
+          "group": "2_transfer@3"
+        },
+        {
+          "command": "remoteRun.downloadToComputer",
+          "when": "view == remoteRunHosts && viewItem =~ /^remote/",
+          "group": "2_transfer@4"
+        },
+        {
+          "command": "remoteRun.openExternally",
+          "when": "view == remoteRunHosts && viewItem == remote-file",
+          "group": "0_open@3"
+        },
+        {
+          "command": "remoteRun.renameRemoteItem",
+          "when": "view == remoteRunHosts && viewItem =~ /^remote/",
+          "group": "3_edit@1"
+        },
+        {
+          "command": "remoteRun.deleteRemoteItem",
+          "when": "view == remoteRunHosts && viewItem =~ /^remote/",
+          "group": "4_delete@1"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "remoteRun.sendLocalToHost",
+          "when": "remoteRun.connected",
+          "group": "6_remoterun@1"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "remoteRun.sendLocalToHost",
+          "when": "remoteRun.connected && resourceScheme == file",
+          "group": "6_remoterun@1"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "remoteRun.connectHost",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.downloadToComputer",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.openExternally",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.disconnectHost",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.deleteHost",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.setActiveHost",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.openRemoteFile",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.previewRemoteFile",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.openAsText",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.renameRemoteItem",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.deleteRemoteItem",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.copyRemoteItem",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.pasteRemoteItem",
+          "when": "false"
+        },
+        {
+          "command": "remoteRun.sendToHost",
+          "when": "false"
+        }
       ]
     },
     "configuration": {
@@ -136,6 +591,40 @@
           "type": "object",
           "default": {},
           "description": "Custom run commands by file extension, e.g. { \".py\": \"python3\", \".js\": \"node\" }."
+        },
+        "remoteRun.maxEditableFileSizeMB": {
+          "type": "number",
+          "default": 16,
+          "minimum": 1,
+          "description": "Largest remote file that may be opened in the text editor. Editor buffers are held in memory, so a high value can freeze the window."
+        },
+        "remoteRun.preview.streaming": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Stream video, audio and large PDFs over a loopback connection instead of downloading them first. Only the parts you actually watch or read are transferred — recommended for low-powered hosts such as a Raspberry Pi. Turn off to always download to the cache."
+        },
+        "remoteRun.preview.pdfStreamThresholdMB": {
+          "type": "number",
+          "default": 4,
+          "minimum": 0,
+          "description": "PDFs larger than this are streamed page-by-page; smaller ones are downloaded to the cache."
+        },
+        "remoteRun.preview.maxDownloadMB": {
+          "type": "number",
+          "default": 64,
+          "minimum": 1,
+          "description": "Ask for confirmation before downloading a preview larger than this."
+        },
+        "remoteRun.preview.maxCacheSizeMB": {
+          "type": "number",
+          "default": 256,
+          "minimum": 0,
+          "description": "Disk budget for cached previews. Least-recently-used files are dropped once the cache exceeds it."
+        },
+        "remoteRun.preview.clearCacheOnExit": {
+          "type": "boolean",
+          "default": true,
+          "description": "Delete every cached preview when VS Code closes."
         }
       }
     }
@@ -159,6 +648,7 @@
     "@vscode/test-cli": "^0.0.15",
     "@vscode/test-electron": "^3.0.0",
     "eslint": "^10.5.0",
+    "pdfjs-dist": "^4.10.38",
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.61.1"
   },

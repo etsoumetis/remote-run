@@ -52,6 +52,25 @@ export class RemoteFileSystemProvider implements vscode.FileSystemProvider {
 
   async readFile(uri: vscode.Uri): Promise<Uint8Array> {
     const sftp = await this.ssh.getSftp(uri.authority);
+
+    // Editor buffers live entirely in memory. Without this ceiling, one stray
+    // click on a large file pulls it all into the extension host and wedges the
+    // window — the exact failure this extension exists to avoid.
+    const limitMb = vscode.workspace.getConfiguration('remoteRun')
+      .get<number>('maxEditableFileSizeMB', 16);
+    const limit = limitMb * 1024 * 1024;
+
+    const size = await new Promise<number>(resolve => {
+      sftp.stat(uri.path, (err, stats) => resolve(err ? 0 : stats.size ?? 0));
+    });
+    if (size > limit) {
+      const name = uri.path.split('/').pop() ?? uri.path;
+      throw vscode.FileSystemError.Unavailable(
+        `"${name}" is ${(size / 1024 / 1024).toFixed(1)} MB, over the ${limitMb} MB editor limit. ` +
+        `Raise remoteRun.maxEditableFileSizeMB to open it anyway.`,
+      );
+    }
+
     return new Promise((resolve, reject) => {
       const chunks: Buffer[] = [];
       const stream = sftp.createReadStream(uri.path);
