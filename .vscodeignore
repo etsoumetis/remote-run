@@ -11,3 +11,22 @@ src/**
 **/*.map
 **/*.ts
 **/.vscode-test.*
+
+# Our own tests do not belong in the published extension.
+out/test/**
+
+# Dependencies ship their test suites, fixtures and examples by default. The
+# ssh2 fixtures include sample private keys and certificates — harmless dummy
+# material, but nothing an installed extension should carry, and the kind of
+# thing that trips security scanners.
+node_modules/**/test/**
+node_modules/**/tests/**
+node_modules/**/__tests__/**
+node_modules/**/example/**
+node_modules/**/examples/**
+node_modules/**/doc/**
+node_modules/**/docs/**
+node_modules/**/*.md
+!node_modules/**/LICENSE*
+node_modules/**/.github/**
+node_modules/**/*.tsbuildinfo

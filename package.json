@@ -2,7 +2,7 @@
   "name": "remote-run",
   "displayName": "Remote Run",
   "description": "Edit locally, run over SSH. Auto-sync on save, multiple hosts at once, file transfers in every direction, and streamed preview of images, video, audio and PDFs — without downloading them.",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "EfthymiosTsoumetis",
   "icon": "icon.png",
   "license": "CC-BY-NC-SA-4.0",
@@ -41,7 +41,7 @@
         {
           "id": "remoteRunSidebar",
           "title": "Remote Run",
-          "icon": "icon.png"
+          "icon": "resources/remote-run-icon.svg"
         }
       ]
     },
